@@ -1,8 +1,6 @@
 package main
 
 import (
-	"flag"
-	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -10,21 +8,12 @@ import (
 	"github.com/go-routeros/routeros/v3"
 )
 
-var (
-	debug    = flag.Bool("debug", false, "debug log level mode")
-	command  = flag.String("command", "/interface/wireguard/add =name=wg0 =listen-port=13231", "RouterOS command")
-	address  = flag.String("address", "192.168.56.13:8728", "RouterOS address and port")
-	username = flag.String("username", "admin", "User name")
-	password = flag.String("password", "", "Password")
-	async    = flag.Bool("async", false, "Use async code")
-	useTLS   = flag.Bool("tls", false, "Use TLS")
-)
-
-func dial() (*routeros.Client, error) {
-	if *useTLS {
-		return routeros.DialTLS(*address, *username, *password, nil)
+func dial(address, username, password string) (*routeros.Client, error) {
+	var useTLS = false
+	if useTLS {
+		return routeros.DialTLS(address, username, password, nil)
 	}
-	return routeros.Dial(*address, *username, *password)
+	return routeros.Dial(address, username, password)
 }
 
 func fatal(log *slog.Logger, message string, err error) {
@@ -33,13 +22,9 @@ func fatal(log *slog.Logger, message string, err error) {
 }
 
 func main() {
-	var err error
-	if err = flag.CommandLine.Parse(os.Args[1:]); err != nil {
-		panic(err)
-	}
-
+	var debug = false
 	logLevel := slog.LevelInfo
-	if debug != nil && *debug {
+	if debug {
 		logLevel = slog.LevelDebug
 	}
 
@@ -50,7 +35,8 @@ func main() {
 
 	log := slog.New(handler)
 
-	c, err := dial()
+	address, username, password := "127.0.0.1:8728", "admin", ""
+	c, err := dial(address, username, password)
 	if err != nil {
 		fatal(log, "could not connect", err)
 	}
@@ -58,16 +44,16 @@ func main() {
 
 	c.SetLogHandler(handler)
 
-	if *async {
+	var async = false
+	if async {
 		c.Async()
 	}
 
-	r, err := c.RunArgs(strings.Split(*command, " "))
+	var command = "/interface/wireguard/add =name=wg0 =listen-port=13231"
+	r, err := c.RunArgs(strings.Split(command, " "))
 	if err != nil {
 		fatal(log, "could not run args", err)
 	}
 
-	fmt.Println(r.Re)
-
-	// log.Info("received results", slog.Any("results", r))
+	log.Info("received results", slog.Any("results", r))
 }
